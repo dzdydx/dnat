@@ -15,8 +15,8 @@
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
-from config import get_dataset_conf
-from audio_tagging_dataset import AudioTaggingDataset
+from .config import get_dataset_conf
+from .audio_tagging_dataset import AudioTaggingDataset
 
 class DInterface(pl.LightningDataModule):
 
@@ -27,9 +27,10 @@ class DInterface(pl.LightningDataModule):
 
         # Dataset paths
         self.dataset = dataset
-        self.train_json_path=kwargs.get("train_json")
-        self.val_json_path=kwargs.get("val_json")
-        self.test_json_path=kwargs.get("test_json")
+        self.train_json=kwargs.get("train_json")
+        self.val_json=kwargs.get("val_json")
+        self.test_json=kwargs.get("test_json")
+        self.label_csv=kwargs.get("label_csv")
 
         # Audio configs
         self.train_audio_conf, self.val_audio_conf = get_dataset_conf(dataset, **kwargs)
@@ -41,13 +42,13 @@ class DInterface(pl.LightningDataModule):
     def setup(self, stage=None):
         # Assign train/val datasets for use in dataloaders
         if stage == 'fit' or stage is None:
-            self.trainset = AudioTaggingDataset(self.train_json, self.train_audio_conf, self.label_csv_path)
-            if self.val_json_path is not None:
-                self.valset = AudioTaggingDataset(self.val_json, self.val_audio_conf, self.label_csv_path)
+            self.trainset = AudioTaggingDataset(self.train_json, self.train_audio_conf, self.label_csv)
+            if self.val_json is not None:
+                self.valset = AudioTaggingDataset(self.val_json, self.val_audio_conf, self.label_csv)
 
         # Assign test dataset for use in dataloader(s)
         if stage == 'test' or stage is None:
-            self.testset = AudioTaggingDataset(self.test_json, self.val_audio_conf, self.label_csv_path)
+            self.testset = AudioTaggingDataset(self.test_json, self.val_audio_conf, self.label_csv)
 
     #     # If you need to balance your data using Pytorch Sampler,
     #     # please uncomment the following lines.

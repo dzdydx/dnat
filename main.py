@@ -71,7 +71,7 @@ def main(args):
     # args.callbacks = load_callbacks()
     # args.logger = logger
 
-    trainer = Trainer.from_argparse_args(args)
+    trainer = Trainer.from_argparse_args(args, accelerator='gpu', devices=1)
     trainer.fit(model, data_module)
 
 
@@ -91,7 +91,7 @@ if __name__ == '__main__':
 
     # Restart Control
     parser.add_argument('--load_best', action='store_true')
-    parser.add_argument('--load_dir', default='checkpoints', type=str)
+    parser.add_argument('--load_dir', default=None, type=str)
     parser.add_argument('--load_ver', default=None, type=str)
     parser.add_argument('--load_v_num', default=None, type=int)
 
@@ -101,14 +101,14 @@ if __name__ == '__main__':
     parser.add_argument('--train_json', type=str)
     parser.add_argument('--val_json', type=str)
     parser.add_argument('--test_json', type=str)
-    parser.add_argument('--model_name', default='standard_net', type=str)
+    parser.add_argument('--label_csv', type=str)
+    
     parser.add_argument('--loss', default='bce', type=str)
     parser.add_argument('--weight_decay', default=1e-5, type=float)
-    parser.add_argument('--no_augment', action='store_true')
     parser.add_argument('--log_dir', default='log', type=str)
     
     # Model Hyperparameters
-    parser.add_argument('--hid', default=128, type=int)
+    parser.add_argument('--hid', default=64, type=int)
     parser.add_argument('--block_num', default=8, type=int)
     parser.add_argument('--in_channel', default=1, type=int)
     parser.add_argument('--layer_num', default=5, type=int)
@@ -123,5 +123,9 @@ if __name__ == '__main__':
     parser.set_defaults(max_epochs=100)
 
     args = parser.parse_args()
+    class_num = {
+        'esc50': 50,
+    }
+    args.class_num = class_num.get(args.dataset)
 
     main(args)

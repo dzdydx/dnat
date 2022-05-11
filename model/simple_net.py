@@ -4,7 +4,7 @@ from torch import nn
 from . import common
 
 class SimpleNet(nn.Module):
-    def __init__(self, in_channel=3, out_channel=10, hid=128, layer_num=5):
+    def __init__(self, in_channel=1, class_num=10, hid=64, layer_num=5):
         super().__init__()
         body = [common.conv3x3(in_channel, hid, 3),
                 nn.ReLU()]
@@ -21,7 +21,7 @@ class SimpleNet(nn.Module):
             nn.Dropout(),
             nn.Linear(2048, 2048),
             nn.ReLU(inplace=True),
-            nn.Linear(2048, out_channel),
+            nn.Linear(2048, class_num),
             nn.Sigmoid()
         )
 

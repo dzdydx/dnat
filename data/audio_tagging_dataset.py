@@ -117,8 +117,7 @@ class AudioTaggingDataset(Dataset):
         if self.time_mask != 0:
             timem = torchaudio.transforms.TimeMasking(self.time_mask)
             fbank = timem(fbank)
-        fbank = fbank.squeeze(0)
-        fbank = torch.transpose(fbank, 0, 1)
+        fbank = torch.transpose(fbank, 1, 2)
 
         # normalize the input for both training and test
         if not self.skip_norm:
