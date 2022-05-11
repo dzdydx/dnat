@@ -6,3 +6,4 @@ MNIST/
 weights/
 /backup
 tasks/
+logs/

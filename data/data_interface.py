@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
-import importlib
-import pickle as pkl
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
-
+from config import get_dataset_conf
+from audio_tagging_dataset import AudioTaggingDataset
 
 class DInterface(pl.LightningDataModule):
 
@@ -26,27 +24,36 @@ class DInterface(pl.LightningDataModule):
                  dataset='',
                  **kwargs):
         super().__init__()
-        self.num_workers = num_workers
+
+        # Dataset paths
         self.dataset = dataset
+        self.train_json_path=kwargs.get("train_json")
+        self.val_json_path=kwargs.get("val_json")
+        self.test_json_path=kwargs.get("test_json")
+
+        # Audio configs
+        self.train_audio_conf, self.val_audio_conf = get_dataset_conf(dataset, **kwargs)
+
+        self.num_workers = num_workers
         self.kwargs = kwargs
         self.batch_size = kwargs['batch_size']
-        self.load_data_module()
 
     def setup(self, stage=None):
         # Assign train/val datasets for use in dataloaders
         if stage == 'fit' or stage is None:
-            self.trainset = self.instancialize(train=True)
-            self.valset = self.instancialize(train=False)
+            self.trainset = AudioTaggingDataset(self.train_json, self.train_audio_conf, self.label_csv_path)
+            if self.val_json_path is not None:
+                self.valset = AudioTaggingDataset(self.val_json, self.val_audio_conf, self.label_csv_path)
 
         # Assign test dataset for use in dataloader(s)
         if stage == 'test' or stage is None:
-            self.testset = self.instancialize(train=False)
+            self.testset = AudioTaggingDataset(self.test_json, self.val_audio_conf, self.label_csv_path)
 
-        # # If you need to balance your data using Pytorch Sampler,
-        # # please uncomment the following lines.
+    #     # If you need to balance your data using Pytorch Sampler,
+    #     # please uncomment the following lines.
     
-        # with open('./data/ref/samples_weight.pkl', 'rb') as f:
-        #     self.sample_weight = pkl.load(f)
+    #     with open('./data/ref/samples_weight.pkl', 'rb') as f:
+    #         self.sample_weight = pkl.load(f)
 
     # def train_dataloader(self):
     #     sampler = WeightedRandomSampler(self.sample_weight, len(self.trainset)*20)
@@ -60,30 +67,3 @@ class DInterface(pl.LightningDataModule):
 
     def test_dataloader(self):
         return DataLoader(self.testset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=False)
-
-    def load_data_module(self):
-        name = self.dataset
-        # Change the `snake_case.py` file name to `CamelCase` class name.
-        # Please always name your model file name as `snake_case.py` and
-        # class name corresponding `CamelCase`.
-        camel_name = ''.join([i.capitalize() for i in name.split('_')])
-        try:
-            self.data_module = getattr(importlib.import_module(
-                '.'+name, package=__package__), camel_name)
-        except:
-            raise ValueError(
-                f'Invalid Dataset File Name or Invalid Class Name data.{name}.{camel_name}')
-
-    def instancialize(self, **other_args):
-        """ Instancialize a model using the corresponding parameters
-            from self.hparams dictionary. You can also input any args
-            to overwrite the corresponding value in self.kwargs.
-        """
-        class_args = inspect.getargspec(self.data_module.__init__).args[1:]
-        inkeys = self.kwargs.keys()
-        args1 = {}
-        for arg in class_args:
-            if arg in inkeys:
-                args1[arg] = self.kwargs[arg]
-        args1.update(other_args)
-        return self.data_module(**args1)

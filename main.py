@@ -80,7 +80,7 @@ if __name__ == '__main__':
     # Basic Training Control
     parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--num_workers', default=8, type=int)
-    parser.add_argument('--seed', default=1234, type=int)
+    parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--lr', default=1e-3, type=float)
 
     # LR Scheduler
@@ -91,42 +91,37 @@ if __name__ == '__main__':
 
     # Restart Control
     parser.add_argument('--load_best', action='store_true')
-    parser.add_argument('--load_dir', default=None, type=str)
+    parser.add_argument('--load_dir', default='checkpoints', type=str)
     parser.add_argument('--load_ver', default=None, type=str)
     parser.add_argument('--load_v_num', default=None, type=int)
 
     # Training Info
-    parser.add_argument('--dataset', default='standard_data', type=str)
-    parser.add_argument('--data_dir', default='ref/data', type=str)
+    parser.add_argument('--model_name', default='standard_net', type=str)
+    parser.add_argument('--dataset', default='esc50', type=str)
+    parser.add_argument('--train_json', type=str)
+    parser.add_argument('--val_json', type=str)
+    parser.add_argument('--test_json', type=str)
     parser.add_argument('--model_name', default='standard_net', type=str)
     parser.add_argument('--loss', default='bce', type=str)
     parser.add_argument('--weight_decay', default=1e-5, type=float)
     parser.add_argument('--no_augment', action='store_true')
-    parser.add_argument('--log_dir', default='lightning_logs', type=str)
+    parser.add_argument('--log_dir', default='log', type=str)
     
     # Model Hyperparameters
-    parser.add_argument('--hid', default=64, type=int)
+    parser.add_argument('--hid', default=128, type=int)
     parser.add_argument('--block_num', default=8, type=int)
-    parser.add_argument('--in_channel', default=3, type=int)
+    parser.add_argument('--in_channel', default=1, type=int)
     parser.add_argument('--layer_num', default=5, type=int)
 
-    # Other
-    parser.add_argument('--aug_prob', default=0.5, type=float)
+    # # Other
+    # parser.add_argument('--aug_prob', default=0.5, type=float)
 
     # Add pytorch lightning's args to parser as a group.
     parser = Trainer.add_argparse_args(parser)
-
-    ## Deprecated, old version
-    # parser = Trainer.add_argparse_args(
-    #     parser.add_argument_group(title="pl.Trainer args"))
 
     # Reset Some Default Trainer Arguments' Default Values
     parser.set_defaults(max_epochs=100)
 
     args = parser.parse_args()
-
-    # List Arguments
-    args.mean_sen = [0.485, 0.456, 0.406]
-    args.std_sen = [0.229, 0.224, 0.225]
 
     main(args)

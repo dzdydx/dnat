@@ -129,7 +129,7 @@ class AudioTaggingDataset(Dataset):
         #     fbank = torch.roll(fbank, np.random.randint(-10, 10), 0)
 
         # the output fbank shape is [time_frame_num, frequency_bins], e.g., [1024, 128]
-        return fbank, label_indices
+        return fbank, label_indices, datum['filename']
 
     def __len__(self):
         return len(self.data)
