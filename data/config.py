@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+# @Time    : 2022-5-11 21:45:10
+# @Author  : Liu Wuyang
+# @Email   : liuwuyang@whu.edu.cn
+
 datasets = ['audioset', 'fsd50k', 'esc50']
 sample_rate = { 'esc50': 44100, }
 time_frames = { 'esc50': 498, }
