@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+# @Time    : 2022-5-17 22:25:34
+# @Author  : Liu Wuyang
+# @Email   : liuwuyang@whu.edu.cn
+
 import csv
 import json
 import torchaudio
@@ -19,13 +24,12 @@ def make_index_dict(label_csv):
     return index_lookup
 
 class WavDataset(Dataset):
-    def __init__(self, dataset_json_file, audio_conf, label_csv=None):
+    def __init__(self, dataset_json_file, audio_conf, label_csv=None, sample_rate=32000):
         metadata = json.load(Path(dataset_json_file).open())
         self.data_dir = Path(metadata['root_dir'])
         self.data = metadata['data']
 
         self.__dict__.update(audio_conf)
-
         self.index_dict = make_index_dict(label_csv)
         self.label_num = len(self.index_dict)
 
@@ -38,10 +42,12 @@ class WavDataset(Dataset):
         filename = self.data_dir / datum['filename']
 
         waveform, sr = torchaudio.load(filename)
+        if sr != self.sample_rate:
+            resampler = torchaudio.functional.resample(sr, self.sample_rate)
+            waveform = resampler(waveform)
         waveform = waveform.squeeze(0)
         
         label_indices = np.zeros(self.label_num)
-        fbank, mix_lambda = self._wav2fbank(file1)
         for label_str in datum['labels']:
             label_indices[int(self.index_dict[label_str])] = 1.0
         label_indices = torch.FloatTensor(label_indices)

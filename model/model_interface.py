@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+# @Time    : 2022-5-17 22:25:34
+# @Author  : Liu Wuyang
+# @Email   : liuwuyang@whu.edu.cn
+# With functions borrowed from https://github.com/neuralaudio/hear-eval-kit
+
 # Copyright 2021 Zhongyang Zhang
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -114,7 +120,7 @@ class MInterface(pl.LightningModule):
             from self.hparams dictionary. You can also input any args
             to overwrite the corresponding value in self.hparams.
         """
-        class_args = inspect.getargspec(Model.__init__).args[1:]
+        class_args = inspect.getfullargspec(Model.__init__).args[1:]
         inkeys = self.hparams.keys()
         args1 = {}
         for arg in class_args:

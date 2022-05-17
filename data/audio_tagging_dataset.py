@@ -25,7 +25,7 @@ def make_index_dict(label_csv):
     return index_lookup
 
 class AudioTaggingDataset(Dataset):
-    def __init__(self, dataset_json_file, audio_conf, label_csv=None):
+    def __init__(self, dataset_json_file, audio_conf, label_csv=None, sample_rate=32000):
         metadata = json.load(Path(dataset_json_file).open())
         self.data_dir = Path(metadata['root_dir'])
         self.data = metadata['data']
@@ -38,11 +38,18 @@ class AudioTaggingDataset(Dataset):
     def _wav2fbank(self, filename, filename2=None):
         if filename2 == None:
             waveform, sr = torchaudio.load(filename)
+            if sr != self.sample_rate:
+                resampler = torchaudio.functional.resample(sr, self.sample_rate)
+                waveform = resampler(waveform)
             waveform = waveform - waveform.mean()
         else:
             # mixup
-            waveform1, sr = torchaudio.load(filename)
-            waveform2, _ = torchaudio.load(filename2)
+            waveform1, sr1 = torchaudio.load(filename)
+            waveform2, sr2 = torchaudio.load(filename2)
+            if sr1 != self.sample_rate or sr2 != self.sample_rate:
+                resampler = torchaudio.functional.resample(sr, self.sample_rate)
+                waveform1 = resampler(waveform1)
+                waveform2 = resampler(waveform2)
 
             waveform1 = waveform1 - waveform1.mean()
             waveform2 = waveform2 - waveform2.mean()

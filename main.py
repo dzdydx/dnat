@@ -98,6 +98,8 @@ if __name__ == '__main__':
     # Training Info
     parser.add_argument('--model_name', default='standard_net', type=str)
     parser.add_argument('--dataset', default='esc50', type=str)
+    parser.add_argument('--dataset_type', default='audio_tagging_dataset', type=str)
+    parser.add_argument('--sample_rate', default=32000, type=int)
     parser.add_argument('--train_json', type=str)
     parser.add_argument('--val_json', type=str)
     parser.add_argument('--test_json', type=str)
@@ -112,6 +114,11 @@ if __name__ == '__main__':
     parser.add_argument('--block_num', default=8, type=int)
     parser.add_argument('--in_channel', default=1, type=int)
     parser.add_argument('--layer_num', default=5, type=int)
+
+    # PASST wrapper params
+    parser.add_argument('--passt_path', type=str)
+    parser.add_argument('--nfeatures', default=1295, type=str)
+    parser.add_argument('--prediction_type', default="multiclass", type=str)
 
     # # Other
     # parser.add_argument('--aug_prob', default=0.5, type=float)

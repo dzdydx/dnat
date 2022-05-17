@@ -5,8 +5,50 @@
 # Modified from https://github.com/neuralaudio/hear-eval-kit
 
 import torch
+import pytorch_lightning as pl
 from torch import nn
+import torchinfo
 from hear21passt.base import load_model, get_scene_embeddings, get_timestamp_embeddings
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Union
+
+PARAM_GRID = {
+    "hidden_layers": 2,
+    # "hidden_layers": [0, 1, 2],
+    # "hidden_layers": [1, 2, 3],
+    "hidden_dim": 1024,
+    # "hidden_dim": [256, 512, 1024],
+    # "hidden_dim": [1024, 512],
+    # Encourage 0.5
+    "dropout": 0.1,
+    # "dropout": [0.1, 0.5],
+    # "dropout": [0.1, 0.3],
+    # "dropout": [0.1, 0.3, 0.5],
+    # "dropout": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5],
+    # "dropout": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+    "lr": 1e-3,
+    # "lr": [3.2e-3, 1e-3, 3.2e-4, 1e-4, 3.2e-5, 1e-5],
+    # "lr": [1e-2, 3.2e-3, 1e-3, 3.2e-4, 1e-4],
+    # "lr": [1e-1, 1e-2, 1e-3, 1e-4, 1e-5],
+    "patience": 20,
+    "max_epochs": 500,
+    # "max_epochs": [500, 1000],
+    "check_val_every_n_epoch": 3,
+    # "check_val_every_n_epoch": [1, 3, 10],
+    "batch_size": 32,
+    # "batch_size": [1024, 2048],
+    # "batch_size": [256, 512, 1024],
+    # "batch_size": [256, 512, 1024, 2048, 4096, 8192],
+    "hidden_norm": torch.nn.BatchNorm1d,
+    # "hidden_norm": [torch.nn.Identity, torch.nn.BatchNorm1d, torch.nn.LayerNorm],
+    "norm_after_activation": False,
+    # "norm_after_activation": [False, True],
+    "embedding_norm": torch.nn.Identity,
+    # "embedding_norm": [torch.nn.Identity, torch.nn.BatchNorm1d],
+    # "embedding_norm": [torch.nn.Identity, torch.nn.BatchNorm1d, torch.nn.LayerNorm],
+    "initialization": torch.nn.init.xavier_uniform_,
+    "optim": torch.optim.Adam,
+    # "optim": [torch.optim.Adam, torch.optim.SGD],
+}
 
 class OneHotToCrossEntropyLoss(pl.LightningModule):
     def __init__(self):
@@ -22,24 +64,8 @@ class OneHotToCrossEntropyLoss(pl.LightningModule):
         return self.loss(y_hat, y)
 
 class FullyConnectedPrediction(torch.nn.Module):
-    """
-    for ESC-50 :
-        nfeatures = 
-        nlabels = 50,
-        prediction_type = 'multiclass',
-        conf = conf
-    """
-    def __init__(self, nfeatures: int, nlabels: int, prediction_type: str, conf: Dict):
+    def __init__(self, nfeatures: int, class_num: int, prediction_type: str, conf: Dict):
         super().__init__()
-        """
-        conf = {
-            hidden_layers: int,
-            hidden_dim: int,
-            initialization: Function,
-            norm_after_activation: bool,
-            dropout: float,
-        }
-        """
         hidden_modules: List[torch.nn.Module] = []
         curdim = nfeatures
         # Honestly, we don't really know what activation preceded
@@ -65,7 +91,7 @@ class FullyConnectedPrediction(torch.nn.Module):
             self.hidden = torch.nn.Sequential(*hidden_modules)
         else:
             self.hidden = torch.nn.Identity()  # type: ignore
-        self.projection = torch.nn.Linear(curdim, nlabels)
+        self.projection = torch.nn.Linear(curdim, class_num)
 
         conf["initialization"](
             self.projection.weight, gain=torch.nn.init.calculate_gain(last_activation)
@@ -92,36 +118,29 @@ class FullyConnectedPrediction(torch.nn.Module):
 
 
 class PasstWrapper(nn.Module):
-    """
-    Args:
-        module_name: the import name for the embedding module
-        model_path: location to load the model from
-    """
-
     def __init__(
         self,
+        passt_path: str,
         nfeatures: int,
-        label_to_idx: Dict[str, int],
-        nlabels: int,
+        class_num: int,
         prediction_type: str,
-        scores: List[ScoreFunction],
-        conf: Dict,
-        use_scoring_for_early_stopping: bool = True,
+        conf: Dict = PARAM_GRID,
         model_options: Optional[Dict[str, Any]] = None,
     ):
-
+        super(PasstWrapper, self).__init__()
         if model_options is None:
             model_options = {}
 
         # Load the model using the model weights path if they were provided
-        if model_path is not None:
-            self.model = load_model(model_path, **model_options)
+        # "/mnt/lwy/HEAR2021/checkpoints/passt/passt-s-f128-p16-s10-ap.476-swa.pt"
+        if passt_path is not None:
+            self.model = load_model(passt_path, **model_options)
         else:
             self.model = load_model(**model_options)
         
         # Load Predictor
         self.predictor = FullyConnectedPrediction(
-            nfeatures, nlabels, prediction_type, conf
+            nfeatures, class_num, prediction_type, conf
         )
         torchinfo.summary(self.predictor, input_size=(32, nfeatures))
 
@@ -139,7 +158,6 @@ class PasstWrapper(nn.Module):
         self, audio: torch.Tensor
     ) -> Tuple[torch.Tensor,torch.Tensor]:
         with torch.no_grad():
-            # flake8: noqa
             embeddings, timestamps = get_timestamp_embeddings(audio, self.model)
             embeddings = embeddings.detach()
             timestamps = timestamps.detach()
