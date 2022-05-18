@@ -15,7 +15,40 @@
 import math
 import torch
 import torch.nn as nn
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Union
 
+def validate_score_return_type(ret: Union[Tuple[Tuple[str, float], ...], float]):
+    """
+    Valid return types for the metric are
+        - tuple(tuple(string: name of the subtype, float: the value)): This is the
+            case with sed eval metrics. They can return (("f_measure", value),
+            ("precision", value), ...), depending on the scores
+            the metric should is supposed to return. This is set as `scores`
+            attribute in the metric.
+        - float: Standard metric behaviour
+
+    The downstream prediction pipeline is able to handle these two types.
+    In case of the tuple return type, the value of the first entry in the
+    tuple will be used as an optimisation criterion wherever required.
+    For instance, if the return is (("f_measure", value), ("precision", value)),
+    the value corresponding to the f_measure will be used ( for instance in
+    early stopping if this metric is the primary score for the task )
+    """
+    if isinstance(ret, tuple):
+        assert all(
+            type(s) == tuple and type(s[0]) == str and type(s[1]) == float for s in ret
+        ), (
+            "If the return type of the score is a tuple, all the elements "
+            "in the tuple should be tuple of type (string, float)"
+        )
+    elif isinstance(ret, float):
+        pass
+    else:
+        raise ValueError(
+            f"Return type {type(ret)} is unexpected. Return type of "
+            "the score function should either be a "
+            "tuple(tuple) or float. "
+        )
 
 def conv3x3(in_channels, out_channels, kernel_size, bias=True, stride=1):
     return nn.Conv2d(

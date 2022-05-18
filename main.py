@@ -21,6 +21,7 @@
     DInterface can be seen as transparent to all your args.    
 """
 import os
+import pandas as pd
 import pytorch_lightning as pl
 from argparse import ArgumentParser
 from pytorch_lightning import Trainer
@@ -30,22 +31,60 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from model import MInterface
 from data import DInterface
 from utils import load_model_path_by_args
+from score import (
+    ScoreFunction,
+    available_scores,
+    label_to_binary_vector,
+    label_vocab_as_dict,
+    validate_score_return_type,
+)
 
+def load_scores(args):
+    if args.dataset == 'esc50':
+        evaluations = ["top1_acc", "mAP", "d_prime", "aucroc"]
+    elif dataset == 'audioset':
+        evaluations = ["mAP", "aucroc", "d_prime"]
 
-def load_callbacks():
+    label_vocab = pd.read_csv(args.label_csv)
+    nlabels = len(label_vocab)
+    assert nlabels == label_vocab["idx"].max() + 1
+    label_to_idx = label_vocab_as_dict(label_vocab, key="label", value="idx")
+
+    scores = [
+        available_scores[score](label_to_idx=label_to_idx)
+        for score in evaluations
+    ]
+    return scores
+
+def load_callbacks(args):
     callbacks = []
+    scores = args.scores
+    if args.use_scoring_for_early_stopping:
+        # First score is the target
+        target_score = f"val_{str(scores[0])}"
+        if scores[0].maximize:
+            mode = "max"
+        else:
+            mode = "min"
+    else:
+        # This loss is much faster, but will give poorer scores
+        target_score = "val_loss"
+        mode = "min"
+
     callbacks.append(plc.EarlyStopping(
-        monitor='val_acc',
-        mode='max',
-        patience=10,
-        min_delta=0.001
+        monitor=target_score,
+        mode=mode,
+        patience=20,
+        min_delta=0.001,
+        check_on_train_epoch_end=False,
+        verbose=False,
     ))
 
     callbacks.append(plc.ModelCheckpoint(
-        monitor='val_acc',
-        filename='best-{epoch:02d}-{val_acc:.3f}',
+        monitor=target_score,
+        filename='best-{epoch:02d}-{val_top1_acc:.3f}',
         save_top_k=1,
-        mode='max',
+        mode=mode,
         save_last=True
     ))
 
@@ -58,6 +97,12 @@ def load_callbacks():
 def main(args):
     pl.seed_everything(args.seed)
     load_path = load_model_path_by_args(args)
+
+    # Load scores & callbacks
+    args.use_scoring_for_early_stopping = True
+    args.scores = load_scores(args)
+    args.callbacks = load_callbacks(args)
+
     data_module = DInterface(**vars(args))
 
     if load_path is None:
@@ -67,9 +112,8 @@ def main(args):
         args.resume_from_checkpoint = load_path
 
     # # If you want to change the logger's saving folder
-    # logger = TensorBoardLogger(save_dir='kfold_log', name=args.log_dir)
-    # args.callbacks = load_callbacks()
-    # args.logger = logger
+    logger = TensorBoardLogger(save_dir=args.log_dir, name=args.model_name)
+    args.logger = logger
 
     trainer = Trainer.from_argparse_args(args, accelerator='gpu', devices=1)
     trainer.fit(model, data_module)

@@ -96,13 +96,10 @@ class FullyConnectedPrediction(torch.nn.Module):
         conf["initialization"](
             self.projection.weight, gain=torch.nn.init.calculate_gain(last_activation)
         )
-        self.logit_loss: torch.nn.Module
         if prediction_type == "multilabel":
             self.activation: torch.nn.Module = torch.nn.Sigmoid()
-            self.logit_loss = torch.nn.BCEWithLogitsLoss()
         elif prediction_type == "multiclass":
             self.activation = torch.nn.Softmax()
-            self.logit_loss = OneHotToCrossEntropyLoss()
         else:
             raise ValueError(f"Unknown prediction_type {prediction_type}")
 

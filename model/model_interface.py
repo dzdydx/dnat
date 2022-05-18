@@ -25,14 +25,18 @@ from torch.nn import functional as F
 import torch.optim.lr_scheduler as lrs
 
 import pytorch_lightning as pl
-
+from collections import defaultdict
+from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Union
+from .common import validate_score_return_type
 
 class MInterface(pl.LightningModule):
-    def __init__(self, model_name, loss, lr, **kargs):
+    def __init__(self, model_name, loss, lr, scores, **kargs):
         super().__init__()
         self.save_hyperparameters()
         self.load_model()
         self.configure_loss()
+        self.scores = scores
+        self.use_scoring_for_early_stopping = kargs["use_scoring_for_early_stopping"]
 
     def forward(self, x):
         return self.model(x)
@@ -44,24 +48,93 @@ class MInterface(pl.LightningModule):
         self.log('loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
+    # def validation_step(self, batch, batch_idx):
+    #     x, labels, filename = batch
+    #     out = self(x)
+    #     loss = self.loss_function(out, labels)
+    #     label_digit = labels.argmax(axis=1)
+    #     out_digit = out.argmax(axis=1)
+
+    #     correct_num = sum(label_digit == out_digit).cpu().item()
+
+    #     self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
+    #     self.log('val_acc', correct_num/len(out_digit),
+    #              on_step=False, on_epoch=True, prog_bar=True)
+
+    #     return (correct_num, len(out_digit))
+
     def validation_step(self, batch, batch_idx):
-        x, labels, filename = batch
-        out = self(x)
-        loss = self.loss_function(out, labels)
-        label_digit = labels.argmax(axis=1)
-        out_digit = out.argmax(axis=1)
+        x, y, filename = batch
+        y_pr = self(x)
+        z = {
+            "prediction": y_pr,
+            "target": y,
+            "filename": filename
+        }
 
-        correct_num = sum(label_digit == out_digit).cpu().item()
-
-        self.log('val_loss', loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log('val_acc', correct_num/len(out_digit),
-                 on_step=False, on_epoch=True, prog_bar=True)
-
-        return (correct_num, len(out_digit))
+        return z
 
     def test_step(self, batch, batch_idx):
         # Here we just reuse the validation_step for testing
         return self.validation_step(batch, batch_idx)
+
+    def _flatten_batched_outputs(
+        self,
+        outputs,  #: Union[torch.Tensor, List[str]],
+        keys: List[str],
+        dont_stack: List[str] = [],
+    ) -> Dict:
+        # ) -> Dict[str, Union[torch.Tensor, List[str]]]:
+        flat_outputs_default: DefaultDict = defaultdict(list)
+        for output in outputs:
+            assert set(output.keys()) == set(keys), f"{output.keys()} != {keys}"
+            for key in keys:
+                flat_outputs_default[key] += output[key]
+        flat_outputs = dict(flat_outputs_default)
+        for key in keys:
+            if key in dont_stack:
+                continue
+            else:
+                flat_outputs[key] = torch.stack(flat_outputs[key])
+        return flat_outputs
+
+    def _score_epoch_end(self, name: str, outputs: List[Dict[str, List[Any]]]):
+        flat_outputs = self._flatten_batched_outputs(
+            outputs, keys=["target", "prediction", "filename"], dont_stack=["filename"]
+        )
+        target, prediction, filename = (
+            flat_outputs[key] for key in ["target", "prediction", "filename"]
+        )
+
+        self.log(
+            f"{name}_loss",
+            self.loss_function(prediction, target),
+            prog_bar=True,
+            logger=True,
+        )
+
+        # if name == "test":
+        #     # Cache all predictions for later serialization
+        #     self.test_predictions = {
+        #         "target": target.detach().cpu(),
+        #         "prediction": prediction.detach().cpu(),
+        #         "prediction_logit": prediction_logit.detach().cpu(),
+        #     }
+
+        if name == "test" or self.use_scoring_for_early_stopping:
+            self.log_scores(
+                name,
+                score_args=(
+                    prediction.detach().cpu().numpy(),
+                    target.detach().cpu().numpy(),
+                ),
+            )
+
+    def validation_epoch_end(self, outputs: List[Dict[str, List[Any]]]):
+        self._score_epoch_end("val", outputs)
+
+    def test_epoch_end(self, outputs: List[Dict[str, List[Any]]]):
+        self._score_epoch_end("test", outputs)
 
     def on_validation_epoch_end(self):
         # Make the Progress Bar leave there
@@ -100,6 +173,35 @@ class MInterface(pl.LightningModule):
             self.loss_function = F.binary_cross_entropy
         else:
             raise ValueError("Invalid Loss Type!")
+    
+    def log_scores(self, name: str, score_args):
+        """Logs the metric score value for each score defined for the model"""
+        assert hasattr(self, "scores"), "Scores for the model should be defined"
+        end_scores = {}
+        # The first score in the first `self.scores` is the optimization criterion
+        for score in self.scores:
+            score_ret = score(*score_args)
+            validate_score_return_type(score_ret)
+            # If the returned score is a tuple, store each subscore as separate entry
+            if isinstance(score_ret, tuple):
+                end_scores[f"{name}_{score}"] = score_ret[0][1]
+                # All other scores will also be logged
+                for (subscore, value) in score_ret:
+                    end_scores[f"{name}_{score}_{subscore}"] = value
+            elif isinstance(score_ret, float):
+                end_scores[f"{name}_{score}"] = score_ret
+            else:
+                raise ValueError(
+                    f"Return type {type(score_ret)} is unexpected. Return type of "
+                    "the score function should either be a "
+                    "tuple(tuple) or float."
+                )
+
+        self.log(
+            f"{name}_score", end_scores[f"{name}_{str(self.scores[0])}"], logger=True
+        )
+        for score_name in end_scores:
+            self.log(score_name, end_scores[score_name], prog_bar=True, logger=True)
 
     def load_model(self):
         name = self.hparams.model_name
