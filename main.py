@@ -161,7 +161,8 @@ if __name__ == '__main__':
 
     # PASST wrapper params
     parser.add_argument('--passt_path', type=str)
-    parser.add_argument('--nfeatures', default=1295, type=str)
+    parser.add_argument('--nfeatures', default=1295, type=int)
+    parser.add_argument('--embedding_type', default="scene", type=str)
     parser.add_argument('--prediction_type', default="multiclass", type=str)
 
     # # Other

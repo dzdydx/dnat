@@ -8,6 +8,7 @@ import torch
 import pytorch_lightning as pl
 from torch import nn
 import torchinfo
+from einops import reduce, rearrange
 from hear21passt.base import load_model, get_scene_embeddings, get_timestamp_embeddings
 from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Union
 
@@ -64,12 +65,10 @@ class OneHotToCrossEntropyLoss(pl.LightningModule):
         return self.loss(y_hat, y)
 
 class FullyConnectedPrediction(torch.nn.Module):
-    def __init__(self, nfeatures: int, class_num: int, prediction_type: str, conf: Dict):
+    def __init__(self, nfeatures: int, class_num: int, embedding_type: str, prediction_type: str, conf: Dict):
         super().__init__()
         hidden_modules: List[torch.nn.Module] = []
         curdim = nfeatures
-        # Honestly, we don't really know what activation preceded
-        # us for the final embedding.
         last_activation = "linear"
         if conf["hidden_layers"]:
             for i in range(conf["hidden_layers"]):
@@ -93,6 +92,8 @@ class FullyConnectedPrediction(torch.nn.Module):
             self.hidden = torch.nn.Identity()  # type: ignore
         self.projection = torch.nn.Linear(curdim, class_num)
 
+        self.embedding_type = embedding_type
+
         conf["initialization"](
             self.projection.weight, gain=torch.nn.init.calculate_gain(last_activation)
         )
@@ -109,8 +110,16 @@ class FullyConnectedPrediction(torch.nn.Module):
         return x
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.forward_logit(x)
-        x = self.activation(x)
+        if self.embedding_type == "scene":
+            x = self.forward_logit(x)
+            x = self.activation(x)
+        elif self.embedding_type == "timestamp":
+            bsz = x.shape[0]
+            x = rearrange(x, 'b t f -> (b t) f')
+            x = self.forward_logit(x)
+            x = self.activation(x)
+            x = rearrange(x, '(b t) f -> b t f', b=bsz)
+            x = x.mean(axis=1)
         return x
 
 
@@ -120,6 +129,7 @@ class PasstWrapper(nn.Module):
         passt_path: str,
         nfeatures: int,
         class_num: int,
+        embedding_type: str,
         prediction_type: str,
         conf: Dict = PARAM_GRID,
         model_options: Optional[Dict[str, Any]] = None,
@@ -127,22 +137,26 @@ class PasstWrapper(nn.Module):
         super(PasstWrapper, self).__init__()
         if model_options is None:
             model_options = {}
+        
+        self.embedding_type = embedding_type
 
-        # Load the model using the model weights path if they were provided
-        # "/mnt/lwy/HEAR2021/checkpoints/passt/passt-s-f128-p16-s10-ap.476-swa.pt"
         if passt_path is not None:
             self.model = load_model(passt_path, **model_options)
         else:
             self.model = load_model(**model_options)
         
         # Load Predictor
-        self.predictor = FullyConnectedPrediction(
-            nfeatures, class_num, prediction_type, conf
-        )
-        torchinfo.summary(self.predictor, input_size=(32, nfeatures))
-
-        #! Load score matrics later
-        # self.scores = scores
+        if self.embedding_type == "scene":
+            self.predictor = FullyConnectedPrediction(
+                nfeatures, class_num, prediction_type, conf
+            )
+            torchinfo.summary(self.predictor, input_size=(32, nfeatures))
+        elif self.embedding_type == "timestamp":
+            self.predictor = FullyConnectedPrediction(
+                nfeatures, class_num, prediction_type, conf
+            )
+            torchinfo.summary(self.predictor, input_size=(32, 51, nfeatures))
+        
 
     def get_scene_embedding(
         self, audio: torch.Tensor
@@ -161,6 +175,10 @@ class PasstWrapper(nn.Module):
             return embeddings, timestamps
     
     def forward(self, x):
-        x = self.get_scene_embedding(x)
-        x = self.predictor(x)
+        if self.embedding_type == 'scene':
+            x = self.get_scene_embedding(x)
+            x = self.predictor(x)
+        elif self.embedding_type == 'timestamp':
+            embeddings, timestamps = self.get_scene_embedding(x)
+            x = self.predictor(x)
         return x
