@@ -7,3 +7,4 @@ weights/
 /backup
 tasks/
 logs/
+*.ipynb

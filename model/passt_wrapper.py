@@ -148,15 +148,14 @@ class PasstWrapper(nn.Module):
         # Load Predictor
         if self.embedding_type == "scene":
             self.predictor = FullyConnectedPrediction(
-                nfeatures, class_num, prediction_type, conf
+                nfeatures, class_num, embedding_type, prediction_type, conf
             )
             torchinfo.summary(self.predictor, input_size=(32, nfeatures))
         elif self.embedding_type == "timestamp":
             self.predictor = FullyConnectedPrediction(
-                nfeatures, class_num, prediction_type, conf
+                nfeatures, class_num, embedding_type, prediction_type, conf
             )
             torchinfo.summary(self.predictor, input_size=(32, 51, nfeatures))
-        
 
     def get_scene_embedding(
         self, audio: torch.Tensor
@@ -170,7 +169,7 @@ class PasstWrapper(nn.Module):
     ) -> Tuple[torch.Tensor,torch.Tensor]:
         with torch.no_grad():
             embeddings, timestamps = get_timestamp_embeddings(audio, self.model)
-            embeddings = embeddings.detach()
+            embeddings = embeddings.detach().cuda()
             timestamps = timestamps.detach()
             return embeddings, timestamps
     
@@ -179,6 +178,6 @@ class PasstWrapper(nn.Module):
             x = self.get_scene_embedding(x)
             x = self.predictor(x)
         elif self.embedding_type == 'timestamp':
-            embeddings, timestamps = self.get_scene_embedding(x)
-            x = self.predictor(x)
+            embeddings, timestamps = self.get_timestamp_embedding(x)
+            x = self.predictor(embeddings)
         return x

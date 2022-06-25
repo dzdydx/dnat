@@ -32,19 +32,15 @@ class WavDataset(Dataset):
         self.__dict__.update(audio_conf)
         self.index_dict = make_index_dict(label_csv)
         self.label_num = len(self.index_dict)
+        self.sample_rate = sample_rate
 
     def __getitem__(self, index):
-        """
-        returns: a FloatTensor of size (N_freq, N_frames) for spectrogram, or (N_frames) for waveform
-        """
-        # do mix-up for this sample (controlled by the given mixup rate)
         datum = self.data[index]
         filename = self.data_dir / datum['filename']
 
         waveform, sr = torchaudio.load(filename)
         if sr != self.sample_rate:
-            resampler = torchaudio.functional.resample(sr, self.sample_rate)
-            waveform = resampler(waveform)
+            waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
         waveform = waveform.squeeze(0)
         
         label_indices = np.zeros(self.label_num)
