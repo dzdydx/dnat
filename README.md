@@ -1,3 +1,3 @@
-# AMU: Accurate Mix-Up
+# DNAT: De-Noising Audio Transformer
 
 init

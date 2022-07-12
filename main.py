@@ -30,7 +30,6 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from model import MInterface
 from data import DInterface
-from utils import load_model_path_by_args
 from score import (
     ScoreFunction,
     available_scores,
@@ -96,7 +95,6 @@ def load_callbacks(args):
 
 def main(args):
     pl.seed_everything(args.seed)
-    load_path = load_model_path_by_args(args)
 
     # Load scores & callbacks
     args.use_scoring_for_early_stopping = True
@@ -104,19 +102,18 @@ def main(args):
     args.callbacks = load_callbacks(args)
 
     data_module = DInterface(**vars(args))
-
-    if load_path is None:
-        model = MInterface(**vars(args))
-    else:
-        model = MInterface(**vars(args))
-        args.resume_from_checkpoint = load_path
+    model = MInterface(**vars(args))
 
     # # If you want to change the logger's saving folder
     logger = TensorBoardLogger(save_dir=args.log_dir, name=args.model_name)
     args.logger = logger
 
     trainer = Trainer.from_argparse_args(args, accelerator='gpu', devices=1)
-    trainer.fit(model, data_module)
+    if args.ckpt_path is None:
+        trainer.fit(model, data_module)
+    else:
+        trainer.fit(model, data_module, ckpt_path=args.ckpt_path)
+
 
 
 if __name__ == '__main__':
@@ -134,10 +131,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr_decay_min_lr', default=1e-5, type=float)
 
     # Restart Control
-    parser.add_argument('--load_best', action='store_true')
-    parser.add_argument('--load_dir', default=None, type=str)
-    parser.add_argument('--load_ver', default=None, type=str)
-    parser.add_argument('--load_v_num', default=None, type=int)
+    parser.add_argument('--ckpt_path', default=None, type=str)
 
     # Training Info
     parser.add_argument('--model_name', default='standard_net', type=str)
@@ -172,7 +166,7 @@ if __name__ == '__main__':
     parser = Trainer.add_argparse_args(parser)
 
     # Reset Some Default Trainer Arguments' Default Values
-    parser.set_defaults(max_epochs=100)
+    parser.set_defaults(max_epochs=500)
 
     args = parser.parse_args()
     class_num = {

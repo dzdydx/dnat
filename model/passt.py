@@ -499,6 +499,8 @@ class PaSST(nn.Module):
     def forward(self, x):
         global first_RUN
         if first_RUN: print("x", x.size())
+        # [B, 1, T, F]
+        x = x.permute(0, 1, 3, 2)
 
         x = self.forward_features(x)
 
@@ -508,14 +510,16 @@ class PaSST(nn.Module):
             x = self.head(features)
             if first_RUN: print("head", x.size())
             first_RUN = False
-            return x, features
+            x = torch.sigmoid(x)
+            return x
         else:
             features = x
             if first_RUN: print("forward_features", features.size())
             x = self.head(x)
         if first_RUN: print("head", x.size())
         first_RUN = False
-        return x, features
+        x = torch.sigmoid(x)
+        return x
 
 
 def _init_vit_weights(module: nn.Module, name: str = '', head_bias: float = 0., jax_impl: bool = False):

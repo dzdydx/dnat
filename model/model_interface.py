@@ -44,6 +44,7 @@ class MInterface(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, labels, filename = batch
         out = self(x)
+        out = torch.sigmoid(out)
         loss = self.loss_function(out, labels)
         self.log('loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
@@ -66,6 +67,7 @@ class MInterface(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x, y, filename = batch
         y_pr = self(x)
+        y_pr = torch.sigmoid(y_pr)
         z = {
             "prediction": y_pr,
             "target": y,
@@ -208,14 +210,49 @@ class MInterface(pl.LightningModule):
         # Change the `snake_case.py` file name to `CamelCase` class name.
         # Please always name your model file name as `snake_case.py` and
         # class name corresponding `CamelCase`.
-        camel_name = ''.join([i.capitalize() for i in name.split('_')])
-        try:
-            Model = getattr(importlib.import_module(
-                '.'+name, package=__package__), camel_name)
-        except:
-            raise ValueError(
-                f'Invalid Module File Name or Invalid Class Name {name}.{camel_name}!')
-        self.model = self.instancialize(Model)
+        if name == "passt_base384":
+            # Method 1:
+            # from .passt import get_model
+            # self.model = get_model(arch="passt_s_swa_p16_128_ap476", pretrained=True, n_classes=50, in_channels=1,
+            #                 fstride=10, tstride=10,input_fdim=128, input_tdim=998,
+            #                 u_patchout=0, s_patchout_t=40, s_patchout_f=4)
+
+            # Method 2:
+            # from .passt import PaSST
+            # model = PaSST(u_patchout=0, s_patchout_t=40, s_patchout_f=4, img_size=(128, 500), stride=10,
+            #               num_classes=50, act_layer=None, weight_init='')
+            # pretrained = "/mnt/lwy/amu/checkpoints/esc50-passt-s-n-f128-p16-s10-fold1-acc.967.pt"
+            # checkpoint = torch.load(pretrained)
+            # ckpt_dict = {}
+            # state_dict = model.state_dict()
+            # for k, v in checkpoint.items():
+            #     if k in state_dict and state_dict[k].shape == checkpoint[k].shape:
+            #         ckpt_dict[k] = v
+            # ckpt_dict.keys()
+            # state_dict.update(ckpt_dict)
+            # model.load_state_dict(state_dict)
+
+            from hear21passt.base import get_basic_model,get_model_passt
+            # model wrapper, includes Melspectrogram and the default transformer
+            model = get_basic_model(mode="logits")
+            # replace the transformer with one that outputs 50 classes
+            model.net = get_model_passt(arch="passt_s_swa_p16_128_ap476",  n_classes=50)
+
+            # load the pre-trained model state dict
+            state_dict = torch.load('/mnt/lwy/amu/checkpoints/esc50-passt-s-n-f128-p16-s10-fold1-acc.967.pt')
+            # load the weights into the transformer
+            model.net.load_state_dict(state_dict)
+            self.model = model
+
+        else:
+            camel_name = ''.join([i.capitalize() for i in name.split('_')])
+            try:
+                Model = getattr(importlib.import_module(
+                    '.'+name, package=__package__), camel_name)
+            except:
+                raise ValueError(
+                    f'Invalid Module File Name or Invalid Class Name {name}.{camel_name}!')
+            self.model = self.instancialize(Model)
 
     def instancialize(self, Model, **other_args):
         """ Instancialize a model using the corresponding parameters

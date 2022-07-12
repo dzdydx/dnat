@@ -8,3 +8,4 @@ weights/
 tasks/
 logs/
 *.ipynb
+checkpoints/
