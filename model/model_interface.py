@@ -243,6 +243,13 @@ class MInterface(pl.LightningModule):
             # load the weights into the transformer
             model.net.load_state_dict(state_dict)
             self.model = model
+        
+        elif name == "ast_base384":
+            from .ast import ASTModel
+            audio_model = ASTModel(label_dim=50, fstride=10, tstride=10, input_fdim=128,
+                                input_tdim=498, imagenet_pretrain=True,
+                                audioset_pretrain=True, model_size='base384')
+            self.model = audio_model
 
         else:
             camel_name = ''.join([i.capitalize() for i in name.split('_')])

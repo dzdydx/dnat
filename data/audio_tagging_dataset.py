@@ -112,7 +112,7 @@ class AudioTaggingDataset(Dataset):
             for label_str in datum['labels']:
                 label_indices[int(self.index_dict[label_str])] = 1.0
 
-            label_indices = torch.FloatTensor(label_indices)
+            label_indices = torch.HalfTensor(label_indices)
 
         # SpecAug, not do for eval set
         fbank = torch.transpose(fbank, 0, 1)
