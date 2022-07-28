@@ -181,7 +181,7 @@ class ASTModel(nn.Module):
         x = (x[:, 0] + x[:, 1]) / 2
 
         x = self.mlp_head(x)
-        return torch.sigmoid(x)
+        return x
 
 if __name__ == '__main__':
     input_tdim = 100

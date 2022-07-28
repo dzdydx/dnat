@@ -22,7 +22,6 @@ class SimpleNet(nn.Module):
             nn.Linear(2048, 2048),
             nn.ReLU(inplace=True),
             nn.Linear(2048, class_num),
-            nn.Sigmoid()
         )
 
     def forward(self, x):

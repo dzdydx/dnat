@@ -510,7 +510,6 @@ class PaSST(nn.Module):
             x = self.head(features)
             if first_RUN: print("head", x.size())
             first_RUN = False
-            x = torch.sigmoid(x)
             return x
         else:
             features = x
@@ -518,7 +517,6 @@ class PaSST(nn.Module):
             x = self.head(x)
         if first_RUN: print("head", x.size())
         first_RUN = False
-        x = torch.sigmoid(x)
         return x
 
 
