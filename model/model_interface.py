@@ -22,6 +22,7 @@ import inspect
 import torch
 import importlib
 from torch.nn import functional as F
+import torch.nn as nn
 import torch.optim.lr_scheduler as lrs
 
 import pytorch_lightning as pl
@@ -29,9 +30,12 @@ from collections import defaultdict
 from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Union
 from .common import validate_score_return_type
 
+num_classes = { "esc50": 50, "audioset": 527}
+
 class MInterface(pl.LightningModule):
     def __init__(self, model_name, loss, lr, scores, **kargs):
         super().__init__()
+        self.num_classes = num_classes[kargs["dataset"]]
         self.save_hyperparameters()
         self.load_model()
         self.configure_loss()
@@ -121,14 +125,6 @@ class MInterface(pl.LightningModule):
             logger=True,
         )
 
-        # if name == "test":
-        #     # Cache all predictions for later serialization
-        #     self.test_predictions = {
-        #         "target": target.detach().cpu(),
-        #         "prediction": prediction.detach().cpu(),
-        #         "prediction_logit": prediction_logit.detach().cpu(),
-        #     }
-
         if name == "test" or self.use_scoring_for_early_stopping:
             self.log_scores(
                 name,
@@ -182,7 +178,9 @@ class MInterface(pl.LightningModule):
         elif loss == 'bce':
             self.loss_function = F.binary_cross_entropy
         elif loss == 'ce':
-            self.loss_function = F.cross_entropy
+            self.loss_function = nn.CrossEntropyLoss()
+        elif loss == 'bce_logits':
+            self.loss_function = nn.BCEWithLogitsLoss()
         else:
             raise ValueError("Invalid Loss Type!")
     
@@ -222,7 +220,7 @@ class MInterface(pl.LightningModule):
         # class name corresponding `CamelCase`.
         if name == "passt_base384":
             from model.passt import PaSST
-            model = PaSST(stride=10, num_classes=50, distilled=True)
+            model = PaSST(stride=10, num_classes=self.num_classes, distilled=True)
 
             # load the pre-trained model state dict
             state_dict = torch.load('/mnt/lwy/amu/checkpoints/esc50-passt-s-n-f128-p16-s10-fold1-acc.967.pt')
@@ -232,8 +230,8 @@ class MInterface(pl.LightningModule):
         
         elif name == "ast_base384":
             from .ast import ASTModel
-            audio_model = ASTModel(label_dim=50, fstride=10, tstride=10, input_fdim=128,
-                                input_tdim=498, imagenet_pretrain=True,
+            audio_model = ASTModel(label_dim=self.num_classes, fstride=10, tstride=10, input_fdim=128,
+                                input_tdim=998, imagenet_pretrain=True,
                                 audioset_pretrain=True, model_size='base384')
             self.model = audio_model
 

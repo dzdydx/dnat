@@ -73,6 +73,18 @@ class AudioTaggingDataset(Dataset):
                                           num_mel_bins=self.num_mel_bins)
         # fbank.shape = [998, 128] for audioset, [498, 128] for esc-50
 
+        target_length = self.target_length
+        n_frames = fbank.shape[0]
+
+        p = target_length - n_frames
+
+        # cut and pad
+        if p > 0:
+            m = torch.nn.ZeroPad2d((0, 0, 0, p))
+            fbank = m(fbank)
+        elif p < 0:
+            fbank = fbank[0:target_length, :]
+
         if filename2 == None:
             return fbank, 0
         else:

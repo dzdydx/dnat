@@ -41,7 +41,7 @@ from score import (
 def load_scores(args):
     if args.dataset == 'esc50':
         evaluations = ["top1_acc", "mAP", "d_prime", "aucroc"]
-    elif dataset == 'audioset':
+    elif args.dataset == 'audioset':
         evaluations = ["mAP", "aucroc", "d_prime"]
 
     label_vocab = pd.read_csv(args.label_csv)
