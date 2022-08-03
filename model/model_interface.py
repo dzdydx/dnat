@@ -164,7 +164,7 @@ class MInterface(pl.LightningModule):
                                                   T_max=self.hparams.lr_decay_steps,
                                                   eta_min=self.hparams.lr_decay_min_lr)
             elif self.hparams.lr_scheduler == 'multistep':
-                scheduler = lrs.MultiStepLR(optimizer, list(range(5,26)), gamma=0.85)
+                scheduler = lrs.MultiStepLR(optimizer, [10, 15, 20, 25], gamma=0.5, last_epoch=-1)
             else:
                 raise ValueError('Invalid lr_scheduler type!')
             return [optimizer], [scheduler]
@@ -220,10 +220,10 @@ class MInterface(pl.LightningModule):
         # class name corresponding `CamelCase`.
         if name == "passt_base384":
             from model.passt import PaSST
-            model = PaSST(stride=10, num_classes=self.num_classes, distilled=True)
+            model = PaSST(stride=10, num_classes=self.num_classes, distilled=True, s_patchout_t=40, s_patchout_f=4)
 
             # load the pre-trained model state dict
-            state_dict = torch.load('/mnt/lwy/amu/checkpoints/esc50-passt-s-n-f128-p16-s10-fold1-acc.967.pt')
+            state_dict = torch.load('/mnt/lwy/amu/checkpoints/passt-s-f128-p16-s10-ap.476-swa.pt')
             # load the weights into the transformer
             model.load_state_dict(state_dict)
             self.model = model

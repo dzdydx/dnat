@@ -11,7 +11,7 @@ norm_mean = { 'esc50': -5.025409, 'audioset': -5 }
 norm_std = { 'esc50': 5.4591165, 'audioset': 4.5 }
 freq_mask = { 'esc50': 24, 'audioset': 48 }
 time_mask = { 'esc50': 96, 'audioset': 192 }
-mixup = { 'esc50': 0, 'audioset': 0.5 }
+mixup = { 'esc50': 0, 'audioset': 0.3 }
 
 def get_dataset_conf(dataset_name, **kwargs):
     if dataset_name not in datasets:

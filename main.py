@@ -79,13 +79,24 @@ def load_callbacks(args):
         verbose=False,
     ))
 
-    callbacks.append(plc.ModelCheckpoint(
-        monitor=target_score,
-        filename='best-{epoch:02d}-{val_top1_acc:.3f}',
-        save_top_k=1,
-        mode=mode,
-        save_last=True
-    ))
+    # Model check point cfg
+    if args.dataset == 'esc50':
+        callbacks.append(plc.ModelCheckpoint(
+            monitor=target_score,
+            filename='best-{epoch:02d}-{val_top1_acc:.3f}',
+            save_top_k=1,
+            mode=mode,
+            save_last=True
+        ))
+    elif args.dataset == 'audioset':
+        callbacks.append(plc.ModelCheckpoint(
+            monitor=target_score,
+            filename='best-{epoch:02d}-{val_mAP:.3f}',
+            save_top_k=1,
+            mode=mode,
+            save_last=True
+        ))
+
 
     if args.lr_scheduler:
         callbacks.append(plc.LearningRateMonitor(
@@ -98,6 +109,10 @@ def main(args):
 
     # Load scores & callbacks
     args.use_scoring_for_early_stopping = True
+    if args.dataset == 'esc50':
+        args.val_check_interval = 1.0
+    elif args.dataset == 'audioset':
+        args.val_check_interval = 0.1
     args.scores = load_scores(args)
     args.callbacks = load_callbacks(args)
 
@@ -109,15 +124,24 @@ def main(args):
     args.logger = logger
 
     trainer = Trainer.from_argparse_args(args, accelerator='gpu', devices=1)
-    if args.ckpt_path is None:
-        trainer.fit(model, data_module)
-    else:
-        trainer.fit(model, data_module, ckpt_path=args.ckpt_path)
+    
+    if args.mode == "train":
+        if args.ckpt_path is None:
+            trainer.fit(model, data_module)
+        else:
+            trainer.fit(model, data_module, ckpt_path=args.ckpt_path)
 
-
+    # ------------
+    # testing
+    # ------------
+    result = trainer.test(model, data_module)
+    print(result)
 
 if __name__ == '__main__':
     parser = ArgumentParser()
+    # Mode control
+    parser.add_argument('mode', choices=['train', 'eval'])
+
     # Basic Training Control
     parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--num_workers', default=8, type=int)
@@ -169,5 +193,5 @@ if __name__ == '__main__':
     parser.set_defaults(max_epochs=500)
 
     args = parser.parse_args()
-    
+
     main(args)
