@@ -169,9 +169,5 @@ if __name__ == '__main__':
     parser.set_defaults(max_epochs=500)
 
     args = parser.parse_args()
-    class_num = {
-        'esc50': 50,
-    }
-    args.class_num = class_num.get(args.dataset)
-
+    
     main(args)

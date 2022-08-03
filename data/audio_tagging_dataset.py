@@ -35,6 +35,16 @@ class AudioTaggingDataset(Dataset):
         self.index_dict = make_index_dict(label_csv)
         self.label_num = len(self.index_dict)
         self.sample_rate = sample_rate
+    
+    def _wav_cut_pad(self, wav):
+        l = self.sample_rate * self.num_sec
+        p = l - wav.shape[1]
+        if p > 0:
+            m = torch.nn.ConstantPad1d((0, p), 0)
+            wav = m(wav)
+        elif p < 0:
+            wav = wav[:, 0:l]
+        return wav
 
     def _wav2fbank(self, filename, filename2=None):
         if filename2 == None:
@@ -42,6 +52,8 @@ class AudioTaggingDataset(Dataset):
             if sr != self.sample_rate:
                 waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
             waveform = waveform - waveform.mean()
+            # cut or pad
+            waveform = self._wav_cut_pad(waveform)
         else:
             # mixup
             waveform1, sr1 = torchaudio.load(filename)
@@ -51,7 +63,9 @@ class AudioTaggingDataset(Dataset):
                 waveform2 = torchaudio.functional.resample(waveform2, sr, self.sample_rate)
 
             waveform1 = waveform1 - waveform1.mean()
+            waveform1 = self._wav_cut_pad(waveform1)
             waveform2 = waveform2 - waveform2.mean()
+            waveform2 = self._wav_cut_pad(waveform2)
 
             if waveform1.shape[1] != waveform2.shape[1]:
                 if waveform1.shape[1] > waveform2.shape[1]:
