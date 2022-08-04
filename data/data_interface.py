@@ -18,6 +18,7 @@
 # limitations under the License.
 
 import pytorch_lightning as pl
+import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 from .config import get_dataset_conf
@@ -44,6 +45,7 @@ class DInterface(pl.LightningDataModule):
         self.train_audio_conf, self.val_audio_conf = get_dataset_conf(dataset, **kwargs)
 
         self.num_workers = num_workers
+        self.dataset = dataset
         self.kwargs = kwargs
         self.batch_size = kwargs['batch_size']
         self.sample_rate = kwargs['sample_rate']
@@ -59,18 +61,13 @@ class DInterface(pl.LightningDataModule):
         if stage == 'test' or stage is None:
             self.testset = self.data_module(self.test_json, self.val_audio_conf, self.label_csv, self.sample_rate)
 
-    #     # If you need to balance your data using Pytorch Sampler,
-    #     # please uncomment the following lines.
-    
-    #     with open('./data/ref/samples_weight.pkl', 'rb') as f:
-    #         self.sample_weight = pkl.load(f)
-
-    # def train_dataloader(self):
-    #     sampler = WeightedRandomSampler(self.sample_weight, len(self.trainset)*20)
-    #     return DataLoader(self.trainset, batch_size=self.batch_size, num_workers=self.num_workers, sampler = sampler)
-
     def train_dataloader(self):
-        return DataLoader(self.trainset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True)
+        if self.dataset == 'audioset' and self.kwargs['audioset_train'] == 'full':
+            samples_weight = np.loadtxt(self.train_json[:-5]+'_weight.csv', delimiter=',')
+            sampler = WeightedRandomSampler(samples_weight, len(samples_weight), replacement=True)
+            return DataLoader(self.trainset, batch_size=self.batch_size, num_workers=self.num_workers, sampler = sampler)
+        else:
+            return DataLoader(self.trainset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True)
 
     def val_dataloader(self):
         return DataLoader(self.valset, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=False)

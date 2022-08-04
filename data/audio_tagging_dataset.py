@@ -77,11 +77,19 @@ class AudioTaggingDataset(Dataset):
                     # cutting
                     waveform2 = waveform2[0, 0:waveform1.shape[1]]
 
-            # sample lambda from beta distribtion
-            mix_lambda = np.random.beta(10, 10)
-
-            mix_waveform = mix_lambda * waveform1 + (1 - mix_lambda) * waveform2
-            waveform = mix_waveform - mix_waveform.mean()
+            if self.mixup_strategy == 'vanilla':
+                mix_lambda = np.random.beta(10, 10)
+                mix_waveform = mix_lambda * waveform1 + (1 - mix_lambda) * waveform2
+                waveform = mix_waveform - mix_waveform.mean()
+            elif self.mixup_strategy == 'accurate':
+                # TODO
+                pass
+            elif self.mixup_strategy == 'hard':
+                mix_lambda = 0.5
+                mix_waveform = 0.5 * waveform1 + 0.5 * waveform2
+                waveform = mix_waveform - mix_waveform.mean()
+            else:
+                raise NotImplementedError(f"Mix-up strategy {self.mixup_strategy} not implemented.")
 
         fbank = torchaudio.compliance.kaldi.fbank(waveform, sample_frequency=self.sample_rate, window_type='hanning',
                                           num_mel_bins=self.num_mel_bins)
@@ -121,15 +129,33 @@ class AudioTaggingDataset(Dataset):
             file2 = self.data_dir / mix_datum['filename']
             # get the mixed fbank
             fbank, mix_lambda = self._wav2fbank(file1, file2)
+
             # initialize the label
             label_indices = np.zeros(self.label_num)
-            # add sample 1 labels
-            for label_str in datum['labels']:
-                label_indices[int(self.index_dict[label_str])] += mix_lambda
-            # add sample 2 labels
-            for label_str in mix_datum['labels']:
-                label_indices[int(self.index_dict[label_str])] += 1.0-mix_lambda
+
+            if self.mixup_strategy == 'vanilla':
+                # add sample 1 labels   
+                for label_str in datum['labels']:
+                    label_indices[int(self.index_dict[label_str])] += mix_lambda
+                # add sample 2 labels
+                for label_str in mix_datum['labels']:
+                    label_indices[int(self.index_dict[label_str])] += 1.0-mix_lambda
+
+            elif self.mixup_strategy == 'accurate':
+                # TODO
+                pass
+
+            elif self.mixup_strategy == 'hard':
+                for label_str in datum['labels']:
+                    label_indices[int(self.index_dict[label_str])] = 1.0
+                for label_str in mix_datum['labels']:
+                    label_indices[int(self.index_dict[label_str])] = 1.0
+
+            else:
+                raise NotImplementedError(f"Mix-up strategy {self.mixup_strategy} not implemented.")
+
             label_indices = torch.FloatTensor(label_indices)
+            
         # if not do mixup
         else:
             label_indices = np.zeros(self.label_num)

@@ -36,6 +36,7 @@ class MInterface(pl.LightningModule):
     def __init__(self, model_name, loss, lr, scores, **kargs):
         super().__init__()
         self.num_classes = num_classes[kargs["dataset"]]
+        self.pretrained = kargs["pretrained"]
         self.save_hyperparameters()
         self.load_model()
         self.configure_loss()
@@ -219,20 +220,29 @@ class MInterface(pl.LightningModule):
         # Please always name your model file name as `snake_case.py` and
         # class name corresponding `CamelCase`.
         if name == "passt_base384":
-            from model.passt import PaSST
-            model = PaSST(stride=10, num_classes=self.num_classes, distilled=True, s_patchout_t=40, s_patchout_f=4)
-
-            # load the pre-trained model state dict
-            state_dict = torch.load('/mnt/lwy/amu/checkpoints/passt-s-f128-p16-s10-ap.476-swa.pt')
-            # load the weights into the transformer
-            model.load_state_dict(state_dict)
+            if self.pretrained:
+                from model.passt import PaSST
+                model = PaSST(stride=10, num_classes=self.num_classes, distilled=True, s_patchout_t=40, s_patchout_f=4)
+                # load the pre-trained model state dict
+                state_dict = torch.load('/mnt/lwy/amu/checkpoints/passt-s-f128-p16-s10-ap.476-swa.pt')
+                # load the weights into the transformer
+                model.load_state_dict(state_dict)
+            else:
+                from model.passt import get_model
+                model = get_model(arch="passt_deit_bd_p16_384", n_classes=527, s_patchout_t=40, s_patchout_f=4,)
+                
             self.model = model
         
         elif name == "ast_base384":
             from .ast import ASTModel
+            if self.pretrained:
+                audioset_pretrain = True
+            else:
+                audioset_pretrain = False
+
             audio_model = ASTModel(label_dim=self.num_classes, fstride=10, tstride=10, input_fdim=128,
                                 input_tdim=998, imagenet_pretrain=True,
-                                audioset_pretrain=True, model_size='base384')
+                                audioset_pretrain=audioset_pretrain, model_size='base384')
             self.model = audio_model
 
         else:

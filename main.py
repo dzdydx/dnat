@@ -109,10 +109,9 @@ def main(args):
 
     # Load scores & callbacks
     args.use_scoring_for_early_stopping = True
-    if args.dataset == 'esc50':
-        args.val_check_interval = 1.0
-    elif args.dataset == 'audioset':
+    if args.dataset == 'audioset' and args.audioset_train == 'full':
         args.val_check_interval = 0.1
+        
     args.scores = load_scores(args)
     args.callbacks = load_callbacks(args)
 
@@ -124,18 +123,21 @@ def main(args):
     args.logger = logger
 
     trainer = Trainer.from_argparse_args(args, accelerator='gpu', devices=1)
-    
-    if args.mode == "train":
-        if args.ckpt_path is None:
-            trainer.fit(model, data_module)
-        else:
-            trainer.fit(model, data_module, ckpt_path=args.ckpt_path)
 
+    if args.ckpt_path is None:
+        if args.mode == "train":
+            trainer.fit(model, data_module)
+        result = trainer.test(model, data_module)
+        print(result)
+    else:
+        if args.mode == "train":
+            trainer.fit(model, data_module, ckpt_path=args.ckpt_path)
+        result = trainer.test(model, data_module, ckpt_path=args.ckpt_path)
+        print(result)
     # ------------
     # testing
     # ------------
-    result = trainer.test(model, data_module)
-    print(result)
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -147,6 +149,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', default=8, type=int)
     parser.add_argument('--seed', default=42, type=int)
     parser.add_argument('--lr', default=1e-3, type=float)
+    parser.add_argument('--epochs', default=100, type=int)
 
     # LR Scheduler
     parser.add_argument('--lr_scheduler', choices=['step', 'cosine', 'multistep'], type=str)
@@ -158,9 +161,10 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt_path', default=None, type=str)
 
     # Training Info
-    parser.add_argument('--model_name', default='standard_net', type=str)
     parser.add_argument('--dataset', default='esc50', type=str)
     parser.add_argument('--dataset_type', default='audio_tagging_dataset', type=str)
+    parser.add_argument('--audioset_train', default='balanced', type=str)
+    parser.add_argument('--mixup_strategy', default='vanilla', type=str)
     parser.add_argument('--sample_rate', default=32000, type=int)
     parser.add_argument('--train_json', type=str)
     parser.add_argument('--val_json', type=str)
@@ -172,26 +176,26 @@ if __name__ == '__main__':
     parser.add_argument('--log_dir', default='log', type=str)
     
     # Model Hyperparameters
-    parser.add_argument('--hid', default=64, type=int)
-    parser.add_argument('--block_num', default=8, type=int)
-    parser.add_argument('--in_channel', default=1, type=int)
-    parser.add_argument('--layer_num', default=5, type=int)
+    parser.add_argument('--model_name', default='standard_net', type=str)
+    parser.add_argument('--pretrained', action="store_true")
+    # parser.add_argument('--hid', default=64, type=int)
+    # parser.add_argument('--block_num', default=8, type=int)
+    # parser.add_argument('--in_channel', default=1, type=int)
+    # parser.add_argument('--layer_num', default=5, type=int)
 
     # PASST wrapper params
-    parser.add_argument('--passt_path', type=str)
-    parser.add_argument('--nfeatures', default=1295, type=int)
-    parser.add_argument('--embedding_type', default="scene", type=str)
-    parser.add_argument('--prediction_type', default="multiclass", type=str)
+    # parser.add_argument('--passt_path', type=str)
+    # parser.add_argument('--nfeatures', default=1295, type=int)
+    # parser.add_argument('--embedding_type', default="scene", type=str)
+    # parser.add_argument('--prediction_type', default="multiclass", type=str)
 
     # # Other
     # parser.add_argument('--aug_prob', default=0.5, type=float)
 
     # Add pytorch lightning's args to parser as a group.
     parser = Trainer.add_argparse_args(parser)
-
-    # Reset Some Default Trainer Arguments' Default Values
-    parser.set_defaults(max_epochs=500)
+    parser.set_defaults(max_epochs=100)
 
     args = parser.parse_args()
-
+    
     main(args)
