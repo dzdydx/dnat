@@ -11,15 +11,15 @@ norm_mean = { 'esc50': -5.025409, 'audioset': -5 }
 norm_std = { 'esc50': 5.4591165, 'audioset': 4.5 }
 freq_mask = { 'esc50': 24, 'audioset': 48 }
 time_mask = { 'esc50': 96, 'audioset': 192 }
-mixup = { 'esc50': 0, 'audioset': 0.5 }
+mixup_ratio = { 'esc50': 0, 'audioset': 0.5 }
 
 def get_dataset_conf(dataset_name, **kwargs):
     if dataset_name not in datasets:
         raise NotImplementedError(f"{dataset_name} not implemented.")
     
-    mixup_rate = mixup.get(dataset_name)
+    mixup = kwargs.get("mixup_ratio", mixup_ratio[dataset_name])
     if kwargs["mixup_strategy"] == "no_mixup":
-        mixup_rate = 0
+        mixup = 0
 
     train_conf = {
         'num_sec': num_sec.get(dataset_name),
@@ -33,7 +33,7 @@ def get_dataset_conf(dataset_name, **kwargs):
 
         'freq_mask': freq_mask.get(dataset_name),
         'time_mask': time_mask.get(dataset_name),
-        'mixup': mixup_rate,
+        'mixup': mixup,
         'mixup_strategy': kwargs["mixup_strategy"]
     }
 

@@ -35,6 +35,10 @@ class AudioTaggingDataset(Dataset):
         self.index_dict = make_index_dict(label_csv)
         self.label_num = len(self.index_dict)
         self.sample_rate = sample_rate
+
+        if self.mixup_strategy == 'accurate':
+            with open(Path(dataset_json_file).parent / "mixup_windows.json", "r") as fp:
+                self.mixup_windows = json.load(fp)
     
     def _wav_cut_pad(self, wav):
         l = self.sample_rate * self.num_sec
@@ -46,7 +50,7 @@ class AudioTaggingDataset(Dataset):
             wav = wav[:, 0:l]
         return wav
 
-    def _wav2fbank(self, filename, filename2=None):
+    def _wav2fbank(self, filename, filename2=None, mix_window=None):
         if filename2 == None:
             waveform, sr = torchaudio.load(filename)
             if sr != self.sample_rate:
@@ -81,13 +85,20 @@ class AudioTaggingDataset(Dataset):
                 mix_lambda = np.random.beta(10, 10)
                 mix_waveform = mix_lambda * waveform1 + (1 - mix_lambda) * waveform2
                 waveform = mix_waveform - mix_waveform.mean()
+
             elif self.mixup_strategy == 'accurate':
-                # TODO
-                pass
+                mix_lambda = np.random.beta(10, 10)
+                mix_start_time, mix_end_time = mix_window
+                start = int(mix_start_time * self.sample_rate)
+                end = int(mix_end_time * self.sample_rate)
+                mix_waveform = mix_lambda * waveform1[:, start:end] + (1 - mix_lambda) * waveform2[:, start:end]
+                waveform = mix_waveform - mix_waveform.mean()
+                
             elif self.mixup_strategy == 'hard':
                 mix_lambda = 0.5
                 mix_waveform = 0.5 * waveform1 + 0.5 * waveform2
                 waveform = mix_waveform - mix_waveform.mean()
+
             else:
                 raise NotImplementedError(f"Mix-up strategy {self.mixup_strategy} not implemented.")
 
@@ -123,17 +134,17 @@ class AudioTaggingDataset(Dataset):
             # find another sample to mix, also do balance sampling
             # sample the other sample from the multinomial distribution, will make the performance worse
             # mix_sample_idx = np.random.choice(len(self.data), p=self.sample_weight_file)
-            # sample the other sample from the uniform distribution
-            mix_sample_idx = random.randint(0, len(self.data)-1)
-            mix_datum = self.data[mix_sample_idx]
-            file2 = self.data_dir / mix_datum['filename']
-            # get the mixed fbank
-            fbank, mix_lambda = self._wav2fbank(file1, file2)
 
             # initialize the label
             label_indices = np.zeros(self.label_num)
 
             if self.mixup_strategy == 'vanilla':
+                # sample the other sample from the uniform distribution
+                mix_sample_idx = random.randint(0, len(self.data)-1)
+                mix_datum = self.data[mix_sample_idx]
+                file2 = self.data_dir / mix_datum['filename']
+                # get the mixed fbank
+                fbank, mix_lambda = self._wav2fbank(file1, file2)
                 # add sample 1 labels   
                 for label_str in datum['labels']:
                     label_indices[int(self.index_dict[label_str])] += mix_lambda
@@ -142,10 +153,24 @@ class AudioTaggingDataset(Dataset):
                     label_indices[int(self.index_dict[label_str])] += 1.0-mix_lambda
 
             elif self.mixup_strategy == 'accurate':
-                # TODO
-                pass
+                mix_file, labels = random.choice(list(self.mixup_windows.items()))
+                label = random.choice(labels)
+                start_time, end_time, events = label.values()
+                fbank, mix_lambda = self._wav2fbank(file1, mix_file, (start_time, end_time))
+ 
+                for label_str in datum['labels']:
+                    label_indices[int(self.index_dict[label_str])] += mix_lambda
+                for label_str in events:
+                    label_indices[int(self.index_dict[label_str])] += 1.0-mix_lambda
 
             elif self.mixup_strategy == 'hard':
+                # sample the other sample from the uniform distribution
+                mix_sample_idx = random.randint(0, len(self.data)-1)
+                mix_datum = self.data[mix_sample_idx]
+                file2 = self.data_dir / mix_datum['filename']
+                # get the mixed fbank
+                fbank, mix_lambda = self._wav2fbank(file1, file2)
+
                 for label_str in datum['labels']:
                     label_indices[int(self.index_dict[label_str])] = 1.0
                 for label_str in mix_datum['labels']:

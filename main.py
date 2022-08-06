@@ -165,6 +165,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_type', default='audio_tagging_dataset', type=str)
     parser.add_argument('--audioset_train', default='balanced', type=str)
     parser.add_argument('--mixup_strategy', default='vanilla', type=str)
+    parser.add_argument('--mixup_ratio', default=0.5, type=float)
     parser.add_argument('--sample_rate', default=32000, type=int)
     parser.add_argument('--train_json', type=str)
     parser.add_argument('--val_json', type=str)
