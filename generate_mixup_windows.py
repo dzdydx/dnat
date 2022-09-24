@@ -24,8 +24,10 @@ def generate_mixup_windows(train_strong_json_path, num_events_in_window=1, windo
 
         windows = list(filter(lambda x: len(x[1]) == num_events_in_window, end_points.items()))
         avail_windows = []
+        exist_class = set()
         for i, window in enumerate(windows):
             start_time, events = window
+            exist_class = exist_class | set(events)
             idx = end_points_keys.index(start_time)
             window_end_time = end_points_keys[idx + 1]
             if window_end_time - start_time < window_length_threshold:
@@ -39,9 +41,9 @@ def generate_mixup_windows(train_strong_json_path, num_events_in_window=1, windo
                 })
 
         if len(avail_windows) == 0:
-            return None
+            return None, None
 
-        return avail_windows
+        return avail_windows, exist_class
 
     
     with open(train_strong_json_path, "r") as fp:
@@ -49,18 +51,24 @@ def generate_mixup_windows(train_strong_json_path, num_events_in_window=1, windo
     train_strong_data = train_strong_dict["data"]
 
     mixup_windows = {}
+    used_classes = set()
     for mix_sample in tqdm(train_strong_data):
-        avail_windows = get_available_window(mix_sample)
+        avail_windows, exist_classes = get_available_window(mix_sample)
         if avail_windows != None:
+            used_classes = used_classes | exist_classes
             mixup_windows.setdefault(
                 mix_sample["filepath"],
                 avail_windows)
     
-    p = Path(train_strong_json_path).parent / "mixup_windows.json"
-    with open(p, "w") as fp:
+    p1 = Path(train_strong_json_path).parent / "mixup_windows.json"
+    with open(p1, "w") as fp:
         json.dump(mixup_windows, fp)
     
-    print(f"{len(mixup_windows.keys())} available windows generated in {p}")
+    p2 = Path(train_strong_json_path).parent / "used_classes.json"
+    with open(p2, "w") as fp:
+        json.dump(list(used_classes), fp)
+    
+    print(f"{len(mixup_windows.keys())} available windows generated in {p1}")
 
 
 if __name__ == '__main__':

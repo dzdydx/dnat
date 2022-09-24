@@ -30,13 +30,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from model import MInterface
 from data import DInterface
-from score import (
-    ScoreFunction,
-    available_scores,
-    label_to_binary_vector,
-    label_vocab_as_dict,
-    validate_score_return_type,
-)
+from score import available_scores, label_vocab_as_dict, SelectedMeanAveragePrecision
 
 def load_scores(args):
     if args.dataset == 'esc50':
@@ -53,6 +47,8 @@ def load_scores(args):
         available_scores[score](label_to_idx=label_to_idx)
         for score in evaluations
     ]
+    if args.selected_mAP:
+        scores.append(SelectedMeanAveragePrecision(label_to_idx=label_to_idx))
     return scores
 
 def load_callbacks(args):
@@ -128,15 +124,12 @@ def main(args):
         if args.mode == "train":
             trainer.fit(model, data_module)
         result = trainer.test(model, data_module)
-        print(result)
+        # print(result)
     else:
         if args.mode == "train":
             trainer.fit(model, data_module, ckpt_path=args.ckpt_path)
         result = trainer.test(model, data_module, ckpt_path=args.ckpt_path)
-        print(result)
-    # ------------
-    # testing
-    # ------------
+        # print(result)
 
 
 if __name__ == '__main__':
@@ -190,8 +183,8 @@ if __name__ == '__main__':
     # parser.add_argument('--embedding_type', default="scene", type=str)
     # parser.add_argument('--prediction_type', default="multiclass", type=str)
 
-    # # Other
-    # parser.add_argument('--aug_prob', default=0.5, type=float)
+    # Other
+    parser.add_argument('--selected_mAP', action="store_true")
 
     # Add pytorch lightning's args to parser as a group.
     parser = Trainer.add_argparse_args(parser)

@@ -17,6 +17,7 @@ import sed_eval
 import torch
 from sklearn.metrics import average_precision_score, roc_auc_score
 from scipy import stats
+import json
 
 # Can we get away with not using DCase for every event-based evaluation??
 from dcase_util.containers import MetaDataContainer
@@ -317,6 +318,34 @@ class MeanAveragePrecision(ScoreFunction):
         https://github.com/scikit-learn/scikit-learn/issues/8245
         This might come up in small tasks, where few samples are available
         """
+        return average_precision_score(targets, predictions, average="macro")
+
+class SelectedMeanAveragePrecision(ScoreFunction):
+    """
+    Average Precision is calculated in macro mode which calculates
+    AP at a class level followed by macro-averaging across the classes.
+
+    This mAP is designed to calculate mAP only using the classes that used in
+    selected mix up strategy.
+    """
+    name = "selected_mAP"
+
+    def __init__(self, label_to_idx, name=None, maximize=True):
+        super().__init__(label_to_idx, name, maximize)
+        with open("/mnt/lwy/amu/tasks/audioset/metadata/used_classes.json", "r") as fp:
+            used_classes = json.load(fp) # type == list
+        self.used_class_indexes = [self.label_to_idx[x] for x in used_classes]
+
+    def _compute(self, predictions: np.ndarray, targets: np.ndarray, **kwargs) -> float:
+        assert predictions.ndim == 2
+        assert targets.ndim == 2  # One hot
+
+        predictions = np.take(predictions, self.used_class_indexes)
+        targets = np.take(targets, self.used_class_indexes)
+        print(f"Used class num: {len(self.used_class_indexes)}")
+        print(f"prediction shape: {predictions.shape}")
+        print(f"target shape: {targets.shape}")
+
         return average_precision_score(targets, predictions, average="macro")
 
 

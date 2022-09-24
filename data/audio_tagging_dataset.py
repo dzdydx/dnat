@@ -63,13 +63,13 @@ class AudioTaggingDataset(Dataset):
             waveform1, sr1 = torchaudio.load(filename)
             waveform2, sr2 = torchaudio.load(filename2)
             if sr1 != self.sample_rate or sr2 != self.sample_rate:
-                waveform1 = torchaudio.functional.resample(waveform1, sr, self.sample_rate)
-                waveform2 = torchaudio.functional.resample(waveform2, sr, self.sample_rate)
+                waveform1 = torchaudio.functional.resample(waveform1, sr1, self.sample_rate)
+                waveform2 = torchaudio.functional.resample(waveform2, sr2, self.sample_rate)
 
-            waveform1 = waveform1 - waveform1.mean()
             waveform1 = self._wav_cut_pad(waveform1)
-            waveform2 = waveform2 - waveform2.mean()
+            waveform1 = waveform1 - waveform1.mean()
             waveform2 = self._wav_cut_pad(waveform2)
+            waveform2 = waveform2 - waveform2.mean()
 
             if waveform1.shape[1] != waveform2.shape[1]:
                 if waveform1.shape[1] > waveform2.shape[1]:
@@ -91,8 +91,8 @@ class AudioTaggingDataset(Dataset):
                 mix_start_time, mix_end_time = mix_window
                 start = int(mix_start_time * self.sample_rate)
                 end = int(mix_end_time * self.sample_rate)
-                mix_waveform = mix_lambda * waveform1[:, start:end] + (1 - mix_lambda) * waveform2[:, start:end]
-                waveform = mix_waveform - mix_waveform.mean()
+                waveform1[:, start:end] = mix_lambda * waveform1[:, start:end] + (1 - mix_lambda) * waveform2[:, start:end]
+                waveform = waveform1 - waveform1.mean()
                 
             elif self.mixup_strategy == 'hard':
                 mix_lambda = 0.5
