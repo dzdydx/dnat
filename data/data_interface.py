@@ -53,13 +53,13 @@ class DInterface(pl.LightningDataModule):
     def setup(self, stage=None):
         # Assign train/val datasets for use in dataloaders
         if stage == 'fit' or stage is None:
-            self.trainset = self.data_module(self.train_json, self.train_audio_conf, self.label_csv, self.sample_rate)
+            self.trainset = self.data_module(self.train_json, self.train_audio_conf, self.label_csv, is_train=True, sample_rate=self.sample_rate)
             if self.val_json is not None:
-                self.valset = self.data_module(self.val_json, self.val_audio_conf, self.label_csv, self.sample_rate)
+                self.valset = self.data_module(self.val_json, self.val_audio_conf, self.label_csv, is_train=False, sample_rate=self.sample_rate)
 
         # Assign test dataset for use in dataloader(s)
         if stage == 'test' or stage is None:
-            self.testset = self.data_module(self.test_json, self.val_audio_conf, self.label_csv, self.sample_rate)
+            self.testset = self.data_module(self.test_json, self.val_audio_conf, self.label_csv, is_train=False, sample_rate=self.sample_rate)
 
     def train_dataloader(self):
         if self.dataset == 'audioset' and self.kwargs['audioset_train'] == 'full':

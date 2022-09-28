@@ -13,6 +13,7 @@ import torch.nn.functional
 from torch.utils.data import Dataset
 from pathlib import Path
 import random
+from itertools import accumulate
 
 def make_index_dict(label_csv):
     index_lookup = {}
@@ -25,10 +26,13 @@ def make_index_dict(label_csv):
     return index_lookup
 
 class AudioTaggingDataset(Dataset):
-    def __init__(self, dataset_json_file, audio_conf, label_csv=None, sample_rate=32000):
+    def __init__(self, dataset_json_file, audio_conf, label_csv, is_train, sample_rate=32000):
         metadata = json.load(Path(dataset_json_file).open())
         self.data_dir = Path(metadata['root_dir'])
         self.data = metadata['data']
+        if is_train:
+            sample_weight = np.loadtxt(dataset_json_file[:-5]+'_weight.csv', delimiter=',')
+            self.cum_weights = list(accumulate(sample_weight))
 
         self.__dict__.update(audio_conf)
 
@@ -36,7 +40,7 @@ class AudioTaggingDataset(Dataset):
         self.label_num = len(self.index_dict)
         self.sample_rate = sample_rate
 
-        if self.mixup_strategy == 'accurate':
+        if self.mixup_strategy == 'accurate' or self.mixup_strategy == 'accurate_hard':
             with open(Path(dataset_json_file).parent / "mixup_windows.json", "r") as fp:
                 self.mixup_windows = json.load(fp)
     
@@ -86,7 +90,7 @@ class AudioTaggingDataset(Dataset):
                 mix_waveform = mix_lambda * waveform1 + (1 - mix_lambda) * waveform2
                 waveform = mix_waveform - mix_waveform.mean()
 
-            elif self.mixup_strategy == 'accurate':
+            elif self.mixup_strategy == 'accurate' or self.mixup_strategy == 'accurate_hard':
                 mix_lambda = np.random.beta(10, 10)
                 mix_start_time, mix_end_time = mix_window
                 start = int(mix_start_time * self.sample_rate)
@@ -140,7 +144,10 @@ class AudioTaggingDataset(Dataset):
 
             if self.mixup_strategy == 'vanilla':
                 # sample the other sample from the uniform distribution
-                mix_sample_idx = random.randint(0, len(self.data)-1)
+                # mix_sample_idx = random.randint(0, len(self.data)-1)
+
+                # Use weighted sampler to choose mixup sample
+                mix_sample_idx = random.choices(range(len(self.data)), cum_weights=self.cum_weights)[0]
                 mix_datum = self.data[mix_sample_idx]
                 file2 = self.data_dir / mix_datum['filename']
                 # get the mixed fbank
@@ -174,6 +181,17 @@ class AudioTaggingDataset(Dataset):
                 for label_str in datum['labels']:
                     label_indices[int(self.index_dict[label_str])] = 1.0
                 for label_str in mix_datum['labels']:
+                    label_indices[int(self.index_dict[label_str])] = 1.0
+            
+            elif self.mixup_strategy == 'accurate_hard':
+                mix_file, labels = random.choice(list(self.mixup_windows.items()))
+                label = random.choice(labels)
+                start_time, end_time, events = label.values()
+                fbank, mix_lambda = self._wav2fbank(file1, mix_file, (start_time, end_time))
+ 
+                for label_str in datum['labels']:
+                    label_indices[int(self.index_dict[label_str])] = 1.0
+                for label_str in events:
                     label_indices[int(self.index_dict[label_str])] = 1.0
 
             else:
