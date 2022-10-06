@@ -29,6 +29,7 @@ import pytorch_lightning as pl
 from collections import defaultdict
 from typing import Any, DefaultDict, Dict, List, Optional, Tuple, Union
 from .common import validate_score_return_type
+from .helpers.ramp import exp_warmup_linear_down, cosine_cycle
 
 num_classes = { "esc50": 50, "audioset": 527}
 
@@ -146,12 +147,27 @@ class MInterface(pl.LightningModule):
         self.print('')
 
     def configure_optimizers(self):
+
+        def get_scheduler_lambda(warm_up_len=5, ramp_down_start=50, ramp_down_len=50, last_lr_value=0.01,
+                         schedule_mode="exp_lin"):
+            if schedule_mode == "exp_lin":
+                return exp_warmup_linear_down(warm_up_len, ramp_down_len, ramp_down_start, last_lr_value)
+            if schedule_mode == "cos_cyc":
+                return cosine_cycle(warm_up_len, ramp_down_start, last_lr_value)
+            raise RuntimeError(f"schedule_mode={schedule_mode} Unknown for a lambda funtion.")
+
+
         if hasattr(self.hparams, 'weight_decay'):
             weight_decay = self.hparams.weight_decay
         else:
             weight_decay = 0
-        optimizer = torch.optim.Adam(
-            self.parameters(), lr=self.hparams.lr, weight_decay=weight_decay, betas=(0.95, 0.999))
+        
+        if self.hparams.optimizer == 'adamw':
+            optimizer = torch.optim.AdamW(
+                self.parameters(), lr=self.hparams.lr, weight_decay=weight_decay)
+        else:
+            optimizer = torch.optim.Adam(
+                self.parameters(), lr=self.hparams.lr, weight_decay=weight_decay, betas=(0.95, 0.999))
 
         if self.hparams.lr_scheduler is None:
             return optimizer
@@ -165,7 +181,13 @@ class MInterface(pl.LightningModule):
                                                   T_max=self.hparams.lr_decay_steps,
                                                   eta_min=self.hparams.lr_decay_min_lr)
             elif self.hparams.lr_scheduler == 'multistep':
-                scheduler = lrs.MultiStepLR(optimizer, [10, 15, 20, 25], gamma=0.5, last_epoch=-1)
+                scheduler = lrs.MultiStepLR(optimizer, [1, 2, 3, 4, 5], gamma=0.5, last_epoch=-1)
+            elif self.hparams.lr_scheduler == 'exp_lin':
+                exp_lin = get_scheduler_lambda(schedule_mode='exp_lin')
+                scheduler = lrs.LambdaLR(optimizer, exp_lin)
+            elif self.hparams.lr_scheduler == 'cos_cyc':
+                cos_cyc = get_scheduler_lambda(schedule_mode='cos_cyc')
+                scheduler = lrs.LambdaLR(optimizer, cos_cyc)
             else:
                 raise ValueError('Invalid lr_scheduler type!')
             return [optimizer], [scheduler]
@@ -229,7 +251,7 @@ class MInterface(pl.LightningModule):
                 model.load_state_dict(state_dict)
             else:
                 from model.passt import get_model
-                model = get_model(arch="passt_deit_bd_p16_384", n_classes=527, s_patchout_t=40, s_patchout_f=4,)
+                model = get_model(arch="passt_deit_bd_p16_384", n_classes=527, s_patchout_t=40, s_patchout_f=4)
                 
             self.model = model
         

@@ -21,6 +21,8 @@ def get_dataset_conf(dataset_name, **kwargs):
     if kwargs["mixup_strategy"] == "no_mixup":
         mixup = 0
 
+    use_weighted_mixup = kwargs.get("use_weighted_mixup", False)
+
     train_conf = {
         'num_sec': num_sec.get(dataset_name),
         'sample_rate': sample_rate.get(dataset_name, 32000),
@@ -34,7 +36,8 @@ def get_dataset_conf(dataset_name, **kwargs):
         'freq_mask': freq_mask.get(dataset_name),
         'time_mask': time_mask.get(dataset_name),
         'mixup': mixup,
-        'mixup_strategy': kwargs["mixup_strategy"]
+        'mixup_strategy': kwargs["mixup_strategy"],
+        'use_weighted_mixup': use_weighted_mixup
     }
 
     val_conf = {
@@ -50,7 +53,8 @@ def get_dataset_conf(dataset_name, **kwargs):
         'freq_mask': 0,
         'time_mask': 0,
         'mixup': 0,
-        'mixup_strategy': None
+        'mixup_strategy': None,
+        'use_weighted_mixup': use_weighted_mixup
     }
 
     return train_conf, val_conf

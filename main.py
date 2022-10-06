@@ -96,7 +96,7 @@ def load_callbacks(args):
 
     if args.lr_scheduler:
         callbacks.append(plc.LearningRateMonitor(
-            logging_interval='epoch'))
+            logging_interval='step'))
     return callbacks
 
 
@@ -145,10 +145,11 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', default=100, type=int)
 
     # LR Scheduler
-    parser.add_argument('--lr_scheduler', choices=['step', 'cosine', 'multistep'], type=str)
-    parser.add_argument('--lr_decay_steps', default=20, type=int)
-    parser.add_argument('--lr_decay_rate', default=0.5, type=float)
-    parser.add_argument('--lr_decay_min_lr', default=1e-5, type=float)
+    parser.add_argument('--optimizer', default='adamw', type=str)
+    parser.add_argument('--lr_scheduler', choices=['step', 'cosine', 'multistep', 'exp_lin', 'cos_cyc'], type=str)
+    parser.add_argument('--lr_decay_steps', type=int)
+    parser.add_argument('--lr_decay_rate', type=float)
+    parser.add_argument('--lr_decay_min_lr', type=float)
 
     # Restart Control
     parser.add_argument('--ckpt_path', default=None, type=str)
@@ -157,8 +158,11 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', default='esc50', type=str)
     parser.add_argument('--dataset_type', default='audio_tagging_dataset', type=str)
     parser.add_argument('--audioset_train', default='balanced', type=str)
+
     parser.add_argument('--mixup_strategy', default='vanilla', type=str)
     parser.add_argument('--mixup_ratio', default=0.5, type=float)
+    parser.add_argument('--use_weighted_mixup', action="store_true")
+
     parser.add_argument('--sample_rate', default=32000, type=int)
     parser.add_argument('--train_json', type=str)
     parser.add_argument('--val_json', type=str)

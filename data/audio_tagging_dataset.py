@@ -30,12 +30,12 @@ class AudioTaggingDataset(Dataset):
         metadata = json.load(Path(dataset_json_file).open())
         self.data_dir = Path(metadata['root_dir'])
         self.data = metadata['data']
-        if is_train:
-            sample_weight = np.loadtxt(dataset_json_file[:-5]+'_weight.csv', delimiter=',')
-            self.cum_weights = list(accumulate(sample_weight))
 
         self.__dict__.update(audio_conf)
 
+        if is_train and self.use_weighted_mixup:
+            sample_weight = np.loadtxt(dataset_json_file[:-5]+'_weight.csv', delimiter=',')
+            self.cum_weights = list(accumulate(sample_weight))
         self.index_dict = make_index_dict(label_csv)
         self.label_num = len(self.index_dict)
         self.sample_rate = sample_rate
@@ -143,11 +143,12 @@ class AudioTaggingDataset(Dataset):
             label_indices = np.zeros(self.label_num)
 
             if self.mixup_strategy == 'vanilla':
-                # sample the other sample from the uniform distribution
-                # mix_sample_idx = random.randint(0, len(self.data)-1)
-
-                # Use weighted sampler to choose mixup sample
-                mix_sample_idx = random.choices(range(len(self.data)), cum_weights=self.cum_weights)[0]
+                if self.use_weighted_mixup == True:
+                    # Use weighted sampler to choose mixup sample
+                    mix_sample_idx = random.choices(range(len(self.data)), cum_weights=self.cum_weights)[0]
+                else:
+                    # sample the other sample from the uniform distribution
+                    mix_sample_idx = random.randint(0, len(self.data)-1)
                 mix_datum = self.data[mix_sample_idx]
                 file2 = self.data_dir / mix_datum['filename']
                 # get the mixed fbank
