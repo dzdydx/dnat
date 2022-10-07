@@ -37,7 +37,6 @@ class MInterface(pl.LightningModule):
     def __init__(self, model_name, loss, lr, scores, **kargs):
         super().__init__()
         self.num_classes = num_classes[kargs["dataset"]]
-        self.pretrained = kargs["pretrained"]
         self.save_hyperparameters()
         self.load_model()
         self.configure_loss()
@@ -181,7 +180,7 @@ class MInterface(pl.LightningModule):
                                                   T_max=self.hparams.lr_decay_steps,
                                                   eta_min=self.hparams.lr_decay_min_lr)
             elif self.hparams.lr_scheduler == 'multistep':
-                scheduler = lrs.MultiStepLR(optimizer, [1, 2, 3, 4, 5], gamma=0.5, last_epoch=-1)
+                scheduler = lrs.MultiStepLR(optimizer, [1, 2, 4, 6], gamma=0.5, last_epoch=-1)
             elif self.hparams.lr_scheduler == 'exp_lin':
                 exp_lin = get_scheduler_lambda(schedule_mode='exp_lin')
                 scheduler = lrs.LambdaLR(optimizer, exp_lin)
@@ -242,11 +241,12 @@ class MInterface(pl.LightningModule):
         # Please always name your model file name as `snake_case.py` and
         # class name corresponding `CamelCase`.
         if name == "passt_base384":
-            if self.pretrained:
+            if self.hparams.pretrain_model:
                 from model.passt import PaSST
                 model = PaSST(stride=10, num_classes=self.num_classes, distilled=True, s_patchout_t=40, s_patchout_f=4)
                 # load the pre-trained model state dict
-                state_dict = torch.load('/mnt/lwy/amu/checkpoints/passt-s-f128-p16-s10-ap.476-swa.pt')
+                # state_dict = torch.load('/mnt/lwy/amu/checkpoints/passt-s-f128-p16-s10-ap.476-swa.pt')
+                state_dict = torch.load(self.hparams.pretrain_model)
                 # load the weights into the transformer
                 model.load_state_dict(state_dict)
             else:
@@ -257,7 +257,7 @@ class MInterface(pl.LightningModule):
         
         elif name == "ast_base384":
             from .ast import ASTModel
-            if self.pretrained:
+            if self.hparams.pretrain_model:
                 audioset_pretrain = True
             else:
                 audioset_pretrain = False

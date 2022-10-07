@@ -153,6 +153,7 @@ if __name__ == '__main__':
 
     # Restart Control
     parser.add_argument('--ckpt_path', default=None, type=str)
+    parser.add_argument('--pretrain_model', default=None, type=str)
 
     # Training Info
     parser.add_argument('--dataset', default='esc50', type=str)
