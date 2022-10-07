@@ -180,7 +180,10 @@ class MInterface(pl.LightningModule):
                                                   T_max=self.hparams.lr_decay_steps,
                                                   eta_min=self.hparams.lr_decay_min_lr)
             elif self.hparams.lr_scheduler == 'multistep':
-                scheduler = lrs.MultiStepLR(optimizer, [1, 2, 4, 6], gamma=0.5, last_epoch=-1)
+                if self.hparams.audioset_train == 'full':
+                    scheduler = lrs.MultiStepLR(optimizer, [1, 2, 4, 6], gamma=0.5, last_epoch=-1)
+                else:
+                    scheduler = lrs.MultiStepLR(optimizer, [10, 15, 20, 25], gamma=0.5, last_epoch=-1)
             elif self.hparams.lr_scheduler == 'exp_lin':
                 exp_lin = get_scheduler_lambda(schedule_mode='exp_lin')
                 scheduler = lrs.LambdaLR(optimizer, exp_lin)
