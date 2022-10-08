@@ -269,6 +269,22 @@ class MInterface(pl.LightningModule):
                                 input_tdim=998, imagenet_pretrain=True,
                                 audioset_pretrain=audioset_pretrain, model_size='base384')
             self.model = audio_model
+        
+        elif name == "panns_cnn14":
+            from .panns import Cnn14
+            if self.hparams.pretrain_model: 
+                checkpoint = torch.load(self.hparams.pretrain_model)
+                model = Cnn14(classes_num=527)
+                new_state_dict = model.state_dict()
+
+                for i, k in enumerate(new_state_dict.keys()):
+                    if i > 4:
+                        new_state_dict[k] = checkpoint["model"][k]
+
+                model.load_state_dict(new_state_dict)
+                self.model = model
+            else:
+                self.model = Cnn14(classes_num=527)
 
         else:
             camel_name = ''.join([i.capitalize() for i in name.split('_')])
